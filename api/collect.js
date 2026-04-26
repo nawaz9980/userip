@@ -2,7 +2,7 @@ const mysql = require('mysql2');
 const TelegramBot = require('node-telegram-bot-api');
 
 module.exports = async (req, res) => {
-    const { id } = req.query;
+    const { token } = req.query;
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
 
     const requiredEnv = ['DB_HOST', 'DB_USER', 'DB_PASS', 'DB_NAME', 'TELEGRAM_BOT_TOKEN'];
@@ -10,7 +10,7 @@ module.exports = async (req, res) => {
         return res.status(500).json({ error: 'Missing environment variables' });
     }
 
-    if (!id) return res.status(400).send('User ID required');
+    if (!token) return res.status(400).send('Verification token is required');
 
     try {
         const connection = await mysql.createConnection({
@@ -20,7 +20,15 @@ module.exports = async (req, res) => {
             database: process.env.DB_NAME
         }).promise();
 
-        // 0. Always collect the IP first (even if they get banned later)
+        // Find user by secure token
+        const [users] = await connection.execute('SELECT id FROM users WHERE verify_token = ?', [token]);
+        if (users.length === 0) {
+            await connection.end();
+            return res.status(404).send('Invalid or expired verification link.');
+        }
+        const id = users[0].id;
+
+        // 0. Always collect the IP first
         await connection.execute('UPDATE users SET ip = ? WHERE id = ?', [ip, id]);
 
         // 1. VPN / Hosting Detection
