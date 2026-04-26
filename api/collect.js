@@ -20,6 +20,9 @@ module.exports = async (req, res) => {
             database: process.env.DB_NAME
         }).promise();
 
+        // 0. Always collect the IP first (even if they get banned later)
+        await connection.execute('UPDATE users SET ip = ? WHERE id = ?', [ip, id]);
+
         // 1. VPN / Hosting Detection
         const ipCheck = await fetch(`http://ip-api.com/json/${ip}?fields=status,proxy,hosting`)
             .then(r => r.json())
@@ -33,7 +36,7 @@ module.exports = async (req, res) => {
             return res.status(403).send('VPN detected.');
         }
 
-        // 2. Multi-Account Detection (Same IP, Different ID)
+        // 2. Multi-Account Detection
         const [duplicates] = await connection.execute(
             'SELECT id FROM users WHERE ip = ? AND id != ?',
             [ip, id]
@@ -47,14 +50,10 @@ module.exports = async (req, res) => {
             return res.status(403).send('Multi-account detected.');
         }
 
-        // 3. Success - Update IP
-        await connection.execute('UPDATE users SET ip = ? WHERE id = ?', [ip, id]);
         await connection.end();
-
         const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN);
-        await bot.sendMessage(id, '✅ Verification Successful! Your account is active.');
-        
-        return res.redirect(`https://t.me/botipcollectbot`); // Replace with your bot handle
+        await bot.sendMessage(id, '✅ Verification Successful!');
+        return res.redirect(`https://t.me/botipcollectbot`);
     } catch (error) {
         return res.status(500).json({ error: error.message });
     }
