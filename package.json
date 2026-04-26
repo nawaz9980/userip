@@ -4,6 +4,7 @@
   "main": "index.js",
   "dependencies": {
     "node-telegram-bot-api": "^0.66.0",
-    "mysql2": "^3.9.7"
+    "mysql2": "^3.9.7",
+    "dotenv": "^16.4.5"
   }
 }
